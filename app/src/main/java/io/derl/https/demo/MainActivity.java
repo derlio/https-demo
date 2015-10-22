@@ -21,6 +21,7 @@ import java.security.KeyStore;
 import java.security.SecureRandom;
 import java.security.cert.Certificate;
 import java.security.cert.CertificateFactory;
+import java.util.concurrent.TimeUnit;
 
 import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.SSLContext;
@@ -29,7 +30,8 @@ import javax.net.ssl.TrustManagerFactory;
 import butterknife.Bind;
 import butterknife.ButterKnife;
 import rx.Observable;
-import rx.Subscriber;
+import rx.Observer;
+import rx.Subscription;
 import rx.android.schedulers.AndroidSchedulers;
 import rx.functions.Action1;
 import rx.schedulers.Schedulers;
@@ -62,35 +64,34 @@ public class MainActivity extends AppCompatActivity {
     }
 
     public void requestHttps(View view) {
-        Observable.create(new Observable.OnSubscribe<String>() {
-            @Override
-            public void call(Subscriber<? super String> subscriber) {
-                OkHttpClient client = new OkHttpClient();
-                SSLContext sslContext = sslContextForTrustedCertificates(trustedCertificatesInputStream());
-                client.setSslSocketFactory(sslContext.getSocketFactory());
-                Request request = new Request.Builder()
-                        .url(testHttpsUrl)
-                        .build();
-                try {
-                    Response response = client.newCall(request).execute();
-                    String bodyString = new String(response.body().bytes());
-                    subscriber.onNext(bodyString);
-                    Log.i(TAG, "Response:" + bodyString);
-                } catch (IOException e) {
-                    e.printStackTrace();
-                }
-            }
-
-        })
+        Observable.just(doNetworkRequest())
                 .observeOn(AndroidSchedulers.mainThread())
-                .subscribeOn(Schedulers.newThread()).subscribe(new Action1<String>() {
-            @Override
-            public void call(String s) {
-                if (s != null)
-                    mContent.setText(s);
-            }
-        });
+                .subscribeOn(Schedulers.newThread())
+                .subscribe(new Action1<String>() {
+                    @Override
+                    public void call(String s) {
+                        if (s != null)
+                            mContent.setText(s);
+                    }
+                });
+    }
 
+    private String doNetworkRequest() {
+        OkHttpClient client = new OkHttpClient();
+        SSLContext sslContext = sslContextForTrustedCertificates(trustedCertificatesInputStream());
+        client.setSslSocketFactory(sslContext.getSocketFactory());
+        Request request = new Request.Builder()
+                .url(testHttpsUrl)
+                .build();
+        try {
+            Response response = client.newCall(request).execute();
+            String bodyString = new String(response.body().bytes());
+            Log.i(TAG, "Response:" + bodyString);
+            return bodyString;
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        return null;
     }
 
     private InputStream trustedCertificatesInputStream() {
